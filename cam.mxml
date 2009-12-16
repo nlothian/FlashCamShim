@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" styleName="plain" applicationComplete="initCamera()">
+    <mx:Script>
+    <![CDATA[
+        import flash.media.Camera;
+        import flash.media.Video;
+        import mx.core.UIComponent;
+        import mx.controls.Label;
+        import com.adobe.images.JPGEncoder;
+        import com.dynamicflash.util.Base64;
+
+        public function initCamera():void {
+            var messageCallbackFunction:String=Application.application.parameters.messageCallbackFunction;
+
+            var camStatusCallbackFunction:String=Application.application.parameters.camStatusCallbackFunction;
+
+            var motionDetectionCallbackFunction:String=Application.application.parameters.motionDetectionCallbackFunction;
+
+            var showFrameCallback:String=Application.application.parameters.showFrameCallback;
+            
+            var displayVideo:String = Application.application.parameters.displayVideo;
+            
+            var mirrorVideo:String = Application.application.parameters.mirrorVideo;
+
+            var width:int = 160;
+            if (Application.application.parameters.resolutionX) {
+                width = Application.application.parameters.resolutionX;
+            }
+            var height:int = 120;
+            if (Application.application.parameters.resolutionY) {
+                height = Application.application.parameters.resolutionY;
+            }
+            
+            var exportFps:int = 20;
+            if (Application.application.parameters.framesPerSecond) {
+                exportFps = Application.application.parameters.framesPerSecond;
+            }
+            
+            var jpgEncoderQuality:int = 75;
+            if (Application.application.parameters.jpgEncoderQuality) {
+                jpgEncoderQuality = Application.application.parameters.jpgEncoderQuality;
+            }
+
+        
+            var bandwidth:int = 1000; // Maximum amount of bandwidth that the current outgoing video feed can use, in bytes per second.
+            var quality:int = 100; // This value is 0-100 with 1 being the lowest quality.
+            
+            var flashFps:int = 100; // frames per second for the flash video
+            
+            
+            
+            var cam:Camera = Camera.getCamera();
+            if (cam != null) {
+                debugMessage("Using Camera: " + cam.name);
+
+                cam.setQuality(bandwidth, quality);
+                cam.setMode(width, height, flashFps, false); // setMode(videoWidth, videoHeight, video fps, favor area)
+                cam.addEventListener(StatusEvent.STATUS, statusHandler);
+                cam.addEventListener(ActivityEvent.ACTIVITY, activityHandler);
+
+                var video:Video = new Video(width, height);
+                video.attachCamera(cam);
+                flipHorizontal(video);
+                //video.scaleX = -1;
+                if (displayVideo == "true") {
+                    var videoHolder:UIComponent = new UIComponent();
+                    videoHolder.addChild(video);
+                    flashCamCanvas.addChild(videoHolder);
+                } else {
+                    flashCamCanvas.visible = false;
+                }
+
+                var bitmapData:BitmapData = new BitmapData(video.width,video.height);
+                var myEncoder:JPGEncoder = new JPGEncoder(jpgEncoderQuality);
+
+
+                var copyTime:int = 1000/exportFps;
+
+                var imgCopyTimer:Timer = new Timer(copyTime, 0);
+                imgCopyTimer.addEventListener(TimerEvent.TIMER, imgCopyTimerHandler);
+                imgCopyTimer.start();
+
+            } else {
+                displayError("Could not detect a camera attached to your computer");
+            }
+            
+            
+            // ----
+
+            function flipHorizontal(dsp:DisplayObject):void {
+                var matrix:Matrix = dsp.transform.matrix;
+                matrix.a=-1;
+                matrix.tx=dsp.width+dsp.x;
+                dsp.transform.matrix=matrix;
+            }
+
+            function displayError(errorMessage:String): void {
+                if (messageCallbackFunction) {
+                    ExternalInterface.call(messageCallbackFunction, "ERROR", errorMessage);
+                }
+                
+            }
+
+            function debugMessage(debugMessage:String): void {
+                if (messageCallbackFunction) {
+                    ExternalInterface.call(messageCallbackFunction, "DEBUG", debugMessage);
+                }
+            }
+
+            function activityHandler(e:ActivityEvent):void {
+                if (motionDetectionCallbackFunction) {
+                    ExternalInterface.call(motionDetectionCallbackFunction, e.activating);
+                }
+            }
+
+            
+            function statusHandler(e:StatusEvent): void {
+                var status:String = "DISABLED";
+                if (e.code == "Camera.Unmuted") {
+                    status = "ENABLED";
+                }
+                if (camStatusCallbackFunction) {
+                    ExternalInterface.call(camStatusCallbackFunction, status);
+                }
+            }
+            
+            
+            function imgCopyTimerHandler(event:TimerEvent):void {
+                    var matrix:Matrix = new Matrix();
+                    if (mirrorVideo == "true") {
+                        matrix.a=-1;
+                        matrix.tx=video.width;
+                    }
+            
+                    bitmapData.draw(video, matrix);
+                    var byteObject:Object = new Object();
+                    byteObject.byteArray = myEncoder.encode(bitmapData);
+                    byteObject.encoded = Base64.encodeByteArray(byteObject.byteArray);
+
+	                ExternalInterface.call(showFrameCallback, byteObject.encoded);
+	                
+	                delete byteObject.byteArray;
+	                delete byteObject.encoded;
+            }
+        }
+
+        
+    ]]>
+    </mx:Script>
+    
+    <mx:Canvas height="100%" width="100%" id="flashCamCanvas" visible="true">
+    </mx:Canvas>
+
+</mx:Application>

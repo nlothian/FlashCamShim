@@ -1,0 +1,134 @@
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/swfobject/2.2/swfobject.js"></script>
+    <script type="text/javascript" src="CamShim.js"></script>
+    <script type="text/javascript" src="calibrate.js"></script>
+    <script type="text/javascript" src="common_utils.js" ></script>
+    <script type="text/javascript" src="keypad.js" ></script>
+    <script type="text/javascript" src="sylvester.js" ></script>
+    
+    <script language="javascript">
+        var frameCount = 0;
+        var fpsCalcTimeSecs = 5;
+        
+        var width = 80;
+        var height = 60;
+    
+        var img = new Image();
+        var config;
+        var calibratedColorRange;
+
+        function showFrameCallback(encodedImage) {
+            //document.getElementById('displayImg').src="data:image/jpg;base64," + encodedImage;
+            img.src = "data:image/jpg;base64," + encodedImage;
+            frameCount++;
+        }
+        
+        function camStatus(status) {
+            if (status == "ENABLED") {
+                document.getElementById('camera').style.width = width + "px";
+                document.getElementById('camera').style.height = height + "px";
+            } else {
+                alert("You need to give this page camera access.");
+            }
+        }
+        
+        function camInfo(messageLevel, message) {
+            switch(messageLevel) {
+                case "ERROR": alert(message); break;
+                case "MESSAGE":  break; // need to do something useful here
+                case "DEBUG":  document.forms["form1"].output.value += "DEBUG: " + message + "\n"; break;
+            }
+         }
+         
+         function onMotionDetected(movementOccuring) {
+            /*
+            if (movementOccuring) {
+                camInfo("DEBUG", "movement occuring");
+            } else {
+                camInfo("DEBUG", "movement stopped");
+            }
+            */
+         }
+         
+         function calcFramerate() {
+            var fps = (frameCount/fpsCalcTimeSecs);
+            frameCount = 0;
+            //camInfo("DEBUG","fps = " + fps);
+            document.getElementById('fps').value = fps;
+         }
+
+        function displayCam() {
+            // setup options
+            var camOptions = new CamOptions();
+            camOptions.resolutionX = width;
+            camOptions.resolutionY = height;
+            camOptions.framesPerSecond = 100;
+            camOptions.displayVideo = "true";
+            camOptions.camStatusCallbackFunction = "camStatus";
+            camOptions.messageCallbackFunction = "camInfo";
+            camOptions.motionDetectionCallbackFunction = "onMotionDetected";
+            camOptions.mirrorVideo = "true";
+            
+            var camShim = new CamShim("camera", "showFrameCallback", camOptions); // create the flash camera interface
+            
+            // run this to measure framerate
+            setInterval(calcFramerate, (fpsCalcTimeSecs * 1000));
+            
+            //config = new Config(document.getElementById('displayImg'), document.getElementById('canvas'));
+            config = new Config(img, document.getElementById('canvas'));
+        }
+
+        function calibrate() {
+            calibratedColorRange = config.sensedColorRange();
+            config.close();
+
+            document.getElementById('calibrateBtn').style.display = 'none';
+
+            var keypad = new Keypad(img, document.getElementById('canvas'), calibratedColorRange);
+            keypad.enable();
+        }
+
+
+
+        
+    </script>
+    
+    <title>CamShim</title>
+</head>
+<body onload="displayCam()">
+
+    <div id="camera"></div>
+    <div id="display">
+        <img id='displayImg' src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAAA1BMVEUAAACnej3aAAAAAXRSTlMAQObYZgAAAApJREFUCNdjYAAAAAIAAeIhvDMAAAAASUVORK5CYII=" />
+        
+        <button id='calibrateBtn' onClick='calibrate();'>Calibrate</button>
+        <div style="padding: 15px;">
+            <span id='calibratedcolor' style="border: solid 5px white; margin: 3px; padding: 5px;">Calibrated Color</span>&nbsp;
+            <span id='maxcolor' style="border: solid 5px white; margin: 3px; padding: 5px;">Max</span>&nbsp;
+            <span id='mincolor' style="border: solid 5px white; margin: 3px; padding: 5px;">Min</span>
+        </div>
+        <br />FPS:<input type='text' value='0' id='fps'>
+        <br />Calibrated Color:<input type='text' value='0' id='display'>
+        <br />Closest Similarity:<input type='text' value='0' id='angle'>
+        
+    </div>
+    
+    <div>
+        <canvas id="canvas" width="320" height="240"></canvas>
+        <div id='key' style='font-size: 48px; width:100%; padding-left:50%;float:right'>&nbsp;</div>
+    </div>
+
+    
+
+    <div>
+        <form name="form1" onsubmit="return false;">
+            <textarea cols="60" rows="20" name="output" readonly="false"></textarea>
+        </form>
+    </div>
+
+
+</body>
+</html>
